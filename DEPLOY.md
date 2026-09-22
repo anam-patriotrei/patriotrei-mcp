@@ -102,10 +102,15 @@ other platforms).
 If you'd rather configure it by hand instead of via the Blueprint: **New +**
 -> **Web Service** -> connect the repo -> **Environment: Docker** ->
 Dockerfile Path `./Dockerfile` -> **Health Check Path** `/health` -> set the
-same env vars as above. Pick at least the **Starter** plan for an
-always-on service -- the free tier spins down after inactivity, which adds a
-cold-start delay (and drops any in-flight streamable-http connections) on
-the next request.
+same env vars as above.
+
+The Blueprint uses Render's **free** web service plan, so this costs nothing
+to deploy. The tradeoff: free-tier services spin down after 15 minutes of
+inactivity, so the next request after a quiet period pays a ~30-60s
+cold-start (and drops any in-flight streamable-http connection). If that
+matters for your usage, change `plan: free` to `plan: starter` in
+`render.yaml` (or pick **Starter** in the dashboard) for an always-on
+instance -- that's a paid plan.
 
 ### Put it behind TLS
 

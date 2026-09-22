@@ -3,7 +3,7 @@ services:
     name: buildium-mcp
     env: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     region: oregon
     healthCheckPath: /health
     autoDeploy: true
