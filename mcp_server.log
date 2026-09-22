@@ -1,0 +1,27 @@
+2026-09-21 22:47:09,908 INFO buildium-mcp: x-api-key authentication enabled (2 key(s) configured).
+INFO:     Started server process [20332]
+INFO:     Waiting for application startup.
+2026-09-21 22:47:10,034 INFO mcp.server.streamable_http_manager: StreamableHTTP session manager started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:58772 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58773 - "GET /health HTTP/1.1" 200 OK
+INFO:     160.79.106.175:0 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52093 - "GET /health HTTP/1.1" 200 OK
+INFO:     39.37.156.181:0 - "GET /health HTTP/1.1" 200 OK
+2026-09-21 22:56:32,387 INFO mcp.server.streamable_http_manager: Created new transport with session ID: 2e5cf2b31a254d2a9c664132d82877af
+INFO:     39.37.156.181:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.160:0 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     160.79.106.160:0 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 401 Unauthorized
+INFO:     160.79.106.160:0 - "GET /.well-known/oauth-protected-resource HTTP/1.1" 401 Unauthorized
+INFO:     160.79.106.160:0 - "GET /.well-known/oauth-authorization-server HTTP/1.1" 401 Unauthorized
+2026-09-21 23:08:33,504 INFO mcp.server.streamable_http_manager: Created new transport with session ID: d01711639fc34bd887d6185530cd9484
+INFO:     160.79.106.161:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.173:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.169:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.183:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.183:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.183:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.183:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.168:0 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     160.79.106.179:0 - "POST /mcp HTTP/1.1" 200 OK

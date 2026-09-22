@@ -1,0 +1,9 @@
+2026-09-21 22:48:42,008 INFO buildium-mcp: x-api-key authentication enabled (2 key(s) configured).
+INFO:     Started server process [19160]
+INFO:     Waiting for application startup.
+2026-09-21 22:48:42,125 INFO mcp.server.streamable_http_manager: StreamableHTTP session manager started
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8000): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+2026-09-21 22:48:42,125 INFO mcp.server.streamable_http_manager: StreamableHTTP session manager shutting down
+INFO:     Application shutdown complete.
