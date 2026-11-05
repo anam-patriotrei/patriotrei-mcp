@@ -157,20 +157,28 @@ platform reserves the `Authorization` header for its own OAuth bearer token
 checks `x-api-key` instead (`scripts/auth_tokens.py`), so it works
 regardless of whether the platform's own sign-in is enabled.
 
-## Write access (buildium_write)
+## Sign in with Google + who can do what
 
-The server uses one Buildium key for everyone. Who may *change* data is set in
-code, in `scripts/write_access.py` -> `WRITE_PERMISSIONS` (today: only `julie`,
-methods POST/PUT/PATCH). Everyone else stays read-only.
+People connect to the Claude connector by signing in with Google, so the server
+knows their email. Integrations can still use an `x-api-key`.
 
-1. In Buildium, give the server's key Edit permission for the areas Julie needs
-   (e.g. Maintenance > Work orders/Tasks, Accounting > Bills).
-2. Add `julie:<long random token>` to `MCP_API_KEYS` on Render and redeploy.
-3. In Julie's own Claude, add the connector with her key in the `x-api-key` header.
+**Who can do what** is set in `scripts/access_rules.py`:
+- `READ_DOMAINS` / `READ_EMAILS`: who may sign in and read.
+- `WRITE_PERMISSIONS`: emails that may also use `buildium_write` (today: Julie).
+To change access, edit that file and merge to `main`. Removing someone takes
+effect at their next request.
 
-To change who can write, edit `WRITE_PERMISSIONS` and redeploy.
-To stop all writes at once, set `MCP_WRITES_ENABLED=false` on Render.
+**Render env vars** (Google sign-in is off until `GOOGLE_CLIENT_ID` is set):
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: from Google Cloud (OAuth client, Web application).
+  Authorized redirect URI: `https://buildium-mcp.onrender.com/oauth/google/callback`.
+- `MCP_OAUTH_SECRET`: 40+ random characters (signs sign-in tokens; changing it signs everyone out).
+- `MCP_PUBLIC_URL`: `https://buildium-mcp.onrender.com`
+
+**Claude connector** (org admin): Authentication "Sign in now" / OAuth client
+"Register automatically", and no `x-api-key` header.
+
 Every write previews first; the real call must send back the one-time preview code.
+To stop all writes at once, set `MCP_WRITES_ENABLED=false` on Render.
 
 ## Notes on the current auth design
 

@@ -1,16 +1,9 @@
-"""Who may change data in Buildium, and the buildium_write tool behind it.
+"""The buildium_write tool: create or change data in Buildium.
 
-The server uses ONE Buildium API key for everyone. That key needs Edit
-permissions in Buildium for whatever Julie should be able to change. This
-file is what keeps everyone else read-only: only the API-key names listed
-in WRITE_PERMISSIONS below can write, and only with the methods listed.
-
-    To give someone write access, add a line here and redeploy.
-    To take it away, remove the line (or set MCP_WRITES_ENABLED=false on
-    Render to stop ALL writes at once, no code change needed).
-
-The name is the one in MCP_API_KEYS ("name:token"), so Julie needs her own
-key, e.g. julie:<long random token>, used only in her Claude connector.
+The server uses ONE Buildium API key for everyone; that key needs Edit
+permissions in Buildium for whatever writers should be able to change.
+Who may write (by signed-in email) is set in access_rules.py. Everyone else
+is read-only. MCP_WRITES_ENABLED=false on Render stops ALL writes at once.
 """
 import hashlib
 import hmac
@@ -21,17 +14,12 @@ import secrets
 import threading
 import time
 
+import access_rules
 from buildium_client import BuildiumClient
 
 logger = logging.getLogger("buildium-mcp.write")
 
-# ---------------------------------------------------------------------------
-# WRITE PERMISSIONS -- edit this to change who can write.
-# Everyone not listed here is read-only.
-# ---------------------------------------------------------------------------
-WRITE_PERMISSIONS: dict[str, set[str]] = {
-    "julie": {"POST", "PUT", "PATCH"},  # add "DELETE" here if she needs deletes
-}
+# Who may write lives in access_rules.py (WRITE_PERMISSIONS).
 
 ALL_WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 PREVIEW_TTL = 15 * 60
@@ -57,7 +45,7 @@ def caller_name(ctx) -> str | None:
 def check_allowed(caller: str | None, method: str) -> None:
     if os.environ.get("MCP_WRITES_ENABLED", "true").strip().lower() in ("0", "false", "no"):
         raise WriteNotAllowed("Changing data in Buildium is turned off on this server (MCP_WRITES_ENABLED=false).")
-    allowed = WRITE_PERMISSIONS.get(caller or "", set())
+    allowed = access_rules.write_methods(caller)
     if not allowed:
         raise WriteNotAllowed("You have read-only access to Buildium. Ask Anam if you need to change data.")
     if method not in allowed:

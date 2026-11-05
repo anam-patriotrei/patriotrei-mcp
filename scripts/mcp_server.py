@@ -1,9 +1,9 @@
 """MCP server exposing the Buildium rental report tools to Claude Code / Claude
 Desktop / any MCP client.
 
-Read-only for everyone except the API-key names listed in
-write_access.WRITE_PERMISSIONS (currently only "julie"), who can also use
-buildium_write. Every other tool wraps a GET-only Buildium call (via
+People sign in with Google (oauth_google.py); integrations use an x-api-key.
+Read-only for everyone except those listed in access_rules.WRITE_PERMISSIONS,
+who can also use buildium_write. Every other tool wraps a GET-only Buildium call (via
 BuildiumClient) or one of the report builders also used by run_all.py.
 
 Two transports, controlled by MCP_TRANSPORT:
@@ -82,6 +82,17 @@ else:
             raise SystemExit(str(exc)) from exc
 
         logger.info("x-api-key authentication enabled (%d key(s) configured).", len(api_key_verifier))
+
+oauth_provider = None
+if TRANSPORT != "stdio" and not DISABLE_AUTH:
+    import oauth_google
+
+    if oauth_google.enabled():
+        try:
+            oauth_provider = oauth_google.GoogleOAuthProvider.from_env()
+        except oauth_google.ConfigError as exc:
+            raise SystemExit(str(exc)) from exc
+        logger.info("Google sign-in enabled for %s.", oauth_provider.public_url)
 
 # No token_verifier/auth passed here: those wire up the MCP SDK's built-in
 # bearer-auth middleware, which only checks the `Authorization` header. This
@@ -222,6 +233,36 @@ def _transport_security():
     )
 
 
+def _add_oauth_routes(app) -> str:
+    """Add the sign-in endpoints (OAuth metadata, /authorize, /token, /register,
+    Google callback) to the app. Returns the protected-resource metadata URL."""
+    from pydantic import AnyHttpUrl
+    from starlette.routing import Route
+
+    from mcp.server.auth.routes import (
+        build_resource_metadata_url,
+        create_auth_routes,
+        create_protected_resource_routes,
+    )
+    from mcp.server.auth.settings import ClientRegistrationOptions
+
+    base = oauth_provider.public_url
+    resource = AnyHttpUrl(base + "/mcp")
+    routes = create_auth_routes(
+        oauth_provider, issuer_url=AnyHttpUrl(base),
+        client_registration_options=ClientRegistrationOptions(enabled=True, valid_scopes=["buildium"],
+                                                              default_scopes=["buildium"]),
+    )
+    routes += create_protected_resource_routes(resource, [AnyHttpUrl(base)], scopes_supported=["buildium"],
+                                               resource_name="Patriot REI Buildium")
+    # Same metadata at the root path too, for clients that look there.
+    root = create_protected_resource_routes(AnyHttpUrl(base), [AnyHttpUrl(base)], scopes_supported=["buildium"])
+    routes += [r for r in root if r.path not in {x.path for x in routes}]
+    routes.append(Route(oauth_google.CALLBACK_PATH, oauth_provider.google_callback, methods=["GET"]))
+    app.router.routes[0:0] = routes
+    return str(build_resource_metadata_url(resource))
+
+
 def _run_streamable_http() -> None:
     """Equivalent to mcp.run("streamable-http", ...), except the app is
     wrapped with XApiKeyAuthMiddleware instead of the SDK's Authorization-
@@ -230,10 +271,13 @@ def _run_streamable_http() -> None:
     import uvicorn
 
     app = mcp.streamable_http_app(host=HOST, transport_security=_transport_security())
-    if api_key_verifier is not None:
+    metadata_url = None
+    if oauth_provider is not None:
+        metadata_url = _add_oauth_routes(app)
+    if api_key_verifier is not None or oauth_provider is not None:
         from auth_tokens import XApiKeyAuthMiddleware
 
-        app = XApiKeyAuthMiddleware(app, api_key_verifier)
+        app = XApiKeyAuthMiddleware(app, api_key_verifier, oauth_provider, metadata_url)
 
     config = uvicorn.Config(app, host=HOST, port=PORT, log_level=LOG_LEVEL.lower())
     anyio.run(uvicorn.Server(config).serve)
