@@ -88,36 +88,60 @@ class StaticApiKeyVerifier(TokenVerifier):
 
 
 class XApiKeyAuthMiddleware:
-    """ASGI middleware requiring a valid key in the `x-api-key` header.
+    """ASGI middleware: every request needs EITHER a valid `x-api-key` header
+    (integrations, MCP_API_KEYS) OR, when Google sign-in is on, a valid
+    `Authorization: Bearer <token>` issued by this server after the person
+    signed in (see oauth_google.py).
 
-    Stands in for the MCP SDK's built-in `RequireAuthMiddleware`, which only
-    checks `Authorization: Bearer <token>` -- see the module docstring for
-    why that header isn't available here.
+    Sets scope["state"]["auth_client_id"] to who is calling: the key's name
+    for an API key, or the person's email for a signed-in user. write_access.py
+    and access_rules.py use that to decide read vs write.
     """
 
-    def __init__(self, app: ASGIApp, verifier: StaticApiKeyVerifier, exempt_paths: frozenset[str] = frozenset({"/health"})):
+    OAUTH_PATHS = frozenset({"/authorize", "/token", "/register", "/oauth/google/callback"})
+
+    def __init__(self, app: ASGIApp, verifier: "StaticApiKeyVerifier | None", oauth_provider=None,
+                 resource_metadata_url: str | None = None,
+                 exempt_paths: frozenset[str] = frozenset({"/health"})):
         self.app = app
         self.verifier = verifier
-        self.exempt_paths = exempt_paths
+        self.oauth = oauth_provider
+        self.resource_metadata_url = resource_metadata_url
+        self.exempt_paths = exempt_paths | (self.OAUTH_PATHS if oauth_provider else frozenset())
+
+    def _exempt(self, path: str) -> bool:
+        return path in self.exempt_paths or (self.oauth is not None and path.startswith("/.well-known/"))
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope["path"] in self.exempt_paths:
+        if scope["type"] != "http" or self._exempt(scope["path"]):
             await self.app(scope, receive, send)
             return
 
-        token = Headers(scope=scope).get("x-api-key")
-        auth_info = await self.verifier.verify_token(token) if token else None
+        headers = Headers(scope=scope)
+        who = None
+        api_key = headers.get("x-api-key")
+        if api_key and self.verifier is not None:
+            info = await self.verifier.verify_token(api_key)
+            who = info.client_id if info else None
+        elif self.oauth is not None:
+            auth = headers.get("authorization", "")
+            if auth.lower().startswith("bearer "):
+                info = await self.oauth.load_access_token(auth[7:].strip())
+                who = info.subject if info else None
 
-        if auth_info is None:
+        if who is None:
             await self._send_auth_error(send)
             return
 
-        scope["state"] = {**scope.get("state", {}), "auth_client_id": auth_info.client_id}
+        scope["state"] = {**scope.get("state", {}), "auth_client_id": who}
         await self.app(scope, receive, send)
 
-    @staticmethod
-    async def _send_auth_error(send: Send) -> None:
-        body = json.dumps({"error": "invalid_token", "error_description": "Missing or invalid x-api-key header."}).encode()
+    async def _send_auth_error(self, send: Send) -> None:
+        body = json.dumps({"error": "invalid_token",
+                           "error_description": "Sign in, or send a valid x-api-key header."}).encode()
+        challenge = b'ApiKey realm="mcp", header="x-api-key"'
+        if self.oauth is not None and self.resource_metadata_url:
+            challenge = f'Bearer realm="mcp", resource_metadata="{self.resource_metadata_url}"'.encode()
         await send(
             {
                 "type": "http.response.start",
@@ -125,7 +149,7 @@ class XApiKeyAuthMiddleware:
                 "headers": [
                     (b"content-type", b"application/json"),
                     (b"content-length", str(len(body)).encode()),
-                    (b"www-authenticate", b'ApiKey realm="mcp", header="x-api-key"'),
+                    (b"www-authenticate", challenge),
                 ],
             }
         )
