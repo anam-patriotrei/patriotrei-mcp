@@ -1,9 +1,10 @@
 """MCP server exposing the Buildium rental report tools to Claude Code / Claude
 Desktop / any MCP client.
 
-Read-only by design: every tool wraps a GET-only Buildium call (via
-BuildiumClient) or one of the report builders also used by run_all.py. No
-tool here can create, update or delete anything in Buildium.
+Read-only for everyone except the API-key names listed in
+write_access.WRITE_PERMISSIONS (currently only "julie"), who can also use
+buildium_write. Every other tool wraps a GET-only Buildium call (via
+BuildiumClient) or one of the report builders also used by run_all.py.
 
 Two transports, controlled by MCP_TRANSPORT:
 
@@ -28,11 +29,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 import detect_issues
+import write_access
 import fetch_balance_sheet
 import fetch_gl_bank_activity
 import fetch_rent_roll
@@ -159,6 +161,43 @@ def buildium_get(path: str, params: dict | None = None) -> dict:
         path = "/" + path
     client = BuildiumClient()
     return client.get(path, params=params or {})
+
+
+@mcp.tool()
+def buildium_write(
+    ctx: Context,
+    method: str,
+    path: str,
+    body: dict | list | None = None,
+    params: dict | None = None,
+    confirm: bool = False,
+    preview_code: str | None = None,
+) -> dict:
+    """Create or change data in Buildium (POST/PUT/PATCH) -- e.g. create a
+    work order (POST /workorders), a task (POST /tasks/todorequests), or a
+    bill (POST /bills). Only approved users can use this; everyone else gets
+    a "refused" answer and stays read-only.
+
+    ALWAYS call it first with confirm=false: that returns a preview and a
+    preview_code and changes nothing. Explain the preview to the user in
+    plain words. Only after they clearly confirm, call again with exactly the
+    same method, path, body and params, plus confirm=true and preview_code.
+    The code works once and expires after 15 minutes.
+
+    Look up IDs first with buildium_get (properties "/rentals", units
+    "/rentals/units", vendors "/vendors", staff "/users"), and check
+    Buildium's API reference for the body fields of each endpoint.
+
+    Args:
+        method: POST, PUT or PATCH
+        path: API path relative to https://api.buildium.com/v1, e.g. "/workorders"
+        body: JSON body to send
+        params: optional query parameters
+        confirm: false = preview only; true = actually send it
+        preview_code: the code from the preview (required when confirm=true)
+    """
+    return write_access.buildium_write(ctx, method, path, body=body, params=params,
+                                       confirm=confirm, preview_code=preview_code)
 
 
 def _transport_security():
