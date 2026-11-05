@@ -157,6 +157,21 @@ platform reserves the `Authorization` header for its own OAuth bearer token
 checks `x-api-key` instead (`scripts/auth_tokens.py`), so it works
 regardless of whether the platform's own sign-in is enabled.
 
+## Write access (buildium_write)
+
+The server uses one Buildium key for everyone. Who may *change* data is set in
+code, in `scripts/write_access.py` -> `WRITE_PERMISSIONS` (today: only `julie`,
+methods POST/PUT/PATCH). Everyone else stays read-only.
+
+1. In Buildium, give the server's key Edit permission for the areas Julie needs
+   (e.g. Maintenance > Work orders/Tasks, Accounting > Bills).
+2. Add `julie:<long random token>` to `MCP_API_KEYS` on Render and redeploy.
+3. In Julie's own Claude, add the connector with her key in the `x-api-key` header.
+
+To change who can write, edit `WRITE_PERMISSIONS` and redeploy.
+To stop all writes at once, set `MCP_WRITES_ENABLED=false` on Render.
+Every write previews first; the real call must send back the one-time preview code.
+
 ## Notes on the current auth design
 
 - It's per-token, not per-tool: any valid token can call every tool,

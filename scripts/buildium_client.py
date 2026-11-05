@@ -53,6 +53,13 @@ class BuildiumClient:
             return None
         return resp.json()
 
+    def write(self, method, path, body=None, params=None):
+        """POST/PUT/PATCH/DELETE. Only called from write_access.py, which checks who may write."""
+        resp = self._request(method, path, json=body, params=params or {})
+        if not resp.content:
+            return None
+        return resp.json()
+
     def get_all(self, path, params=None, page_size=500):
         """Paginate a Buildium list endpoint using offset/limit."""
         params = dict(params or {})
