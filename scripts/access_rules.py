@@ -26,6 +26,7 @@ READ_EMAILS = {
 
 WRITE_PERMISSIONS: dict[str, set[str]] = {
     "julie@patriotrei.net": {"POST", "PUT", "PATCH"},  # add "DELETE" if she needs deletes
+    "wendi@patriotrei.net": {"POST", "PUT", "PATCH"},
 }
 
 
